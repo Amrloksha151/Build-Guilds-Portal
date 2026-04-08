@@ -5,9 +5,13 @@
   "type": "module",
   "main": "api/index.js",
   "scripts": {
-    "dev": "node api/index.js",
+    "dev": "node dev.js",
     "check": "node --input-type=module -e \"import { readdirSync } from 'node:fs'; import { join } from 'node:path'; import { spawnSync } from 'node:child_process'; const files = []; const walk = (dir) => { for (const entry of readdirSync(dir, { withFileTypes: true })) { const filePath = join(dir, entry.name); if (entry.isDirectory()) { walk(filePath); } else if (entry.isFile() && filePath.endsWith('.js')) { files.push(filePath); } } }; walk('api'); walk('src'); for (const filePath of files) { const result = spawnSync(process.execPath, ['--check', filePath], { stdio: 'inherit' }); if (result.status !== 0) process.exit(result.status ?? 1); }\"",
-    "test": "echo \"No tests configured yet\""
+    "test": "echo \"No tests configured yet\"",
+    "db:migration:create": "dotenv -e .env -- sequelize-cli migration:generate",
+    "db:migrate": "dotenv -e .env -- sequelize-cli db:migrate",
+    "db:migrate:undo": "dotenv -e .env -- sequelize-cli db:migrate:undo",
+    "db:migrate:undo:all": "dotenv -e .env -- sequelize-cli db:migrate:undo:all"
   },
   "author": "Amr Loksha",
   "license": "ISC",
@@ -16,9 +20,18 @@
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
+    "dotenv": "^16.6.1",
     "express": "^5.2.1",
     "express-rate-limit": "^8.3.2",
+    "express-session": "^1.19.0",
     "helmet": "^8.1.0",
+    "pg": "^8.16.3",
+    "pg-hstore": "^2.3.4",
+    "sequelize": "^6.37.7",
     "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "dotenv-cli": "^8.0.0",
+    "sequelize-cli": "^6.6.3"
   }
 }

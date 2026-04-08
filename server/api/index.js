@@ -1,3 +1,10 @@
 import { createApp } from "../src/app.js";
 
-export default createApp();
+// Routers
+import authRoutes from "../src/routes/auth.routes.js";
+
+const app = createApp();
+
+app.use("/api/v1/auth", authRoutes);
+
+export default app;
