@@ -12,7 +12,7 @@ Participants track activities, earn points, and collaborate in real-time during 
 | Layer       | Technology                                                          |
 |-------------|---------------------------------------------------------------------|
 | Client      | React + Vite + JavaScript + Tailwind CSS + React Router v6          |
-| Server      | Express.js + Neon (PostgreSQL serverless) + RESTful API             |
+| Server      | Express.js + Sequelize + PostgreSQL + RESTful API                   |
 | Deployment  | Vercel — serverless functions (server) + static (client)            |
 | Design      | Blueprint style guide — see Design System section                   |
 | Components  | `@hackclub/theme-ui` components + Tailwind CSS utilities only       |
@@ -71,7 +71,7 @@ build-guild-portal/
         │   ├── rateLimit.middleware.js
         │   └── error.middleware.js    ← centralised error handler (always last)
         ├── db/
-        │   ├── client.js              ← Neon connection singleton
+        │   ├── sequelize.js           ← Sequelize connection singleton
         │   └── migrations/            ← numbered .sql files: 001_init.sql, 002_…sql
         ├── models/                    ← JSDoc-documented shapes mirroring DB tables
         └── utils/
@@ -168,12 +168,11 @@ Role hierarchy (ascending): `guest` → `participant` → `organizer` → `admin
 
 ---
 
-## Database Rules (Neon / PostgreSQL)
+## Database Rules (Sequelize / PostgreSQL)
 
-- Use `@neondatabase/serverless` driver — **not** the `pg` package. Required for Vercel cold-start performance.
-- The Neon client is instantiated **once at module scope** in `db/client.js` and reused across warm invocations.
-- All queries go through the `getDb()` function exported from `db/client.js`. Never import or instantiate `neon()` elsewhere.
-- **Parameterised queries only.** No string interpolation in SQL. Ever.
+- Use `sequelize` with PostgreSQL — instantiate the singleton **once at module scope** in `db/sequelize.js` and reuse it across warm invocations.
+- All database access should go through the shared Sequelize instance or model modules that import it from `db/sequelize.js`.
+- When using raw SQL through Sequelize, keep queries parameterised. No string interpolation in SQL. Ever.
 - Migrations live in `src/db/migrations/` as numbered SQL files (`001_init.sql`, `002_add_teams.sql`…).
 - Schema changes always require a new migration file — never alter existing migration files after they have been committed.
 
@@ -185,7 +184,7 @@ Role hierarchy (ascending): `guest` → `participant` → `organizer` → `admin
 - `api/index.js` is the only file that exports the serverless handler: `export default app`.
 - `vercel.json` rewrites `/api/*` to the serverless function and all other paths to `index.html` for the SPA.
 - The `buildCommand` in `vercel.json` should point to `client/` and `outputDirectory` to `client/dist`.
-- Keep the Express app and Neon client at **module scope** (outside the handler function) to survive warm invocations without re-initialisation.
+- Keep the Express app and Sequelize instance at **module scope** (outside the handler function) to survive warm invocations without re-initialisation.
 - Maximum function duration is 10 seconds — avoid long-running synchronous operations.
 
 ### Session Authentication on Serverless (Mandatory)
@@ -194,7 +193,7 @@ Role hierarchy (ascending): `guest` → `participant` → `organizer` → `admin
 - Use `cookie-parser` and `crypto` (Node built-in) to issue opaque session IDs; never put role, user ID, or permissions in client-readable cookies.
 - Session cookies must be configured as: `HttpOnly`, `Secure` in production, `SameSite=Lax` (or `None` only when cross-site is required with HTTPS), and path `/`.
 - `authMiddleware` must resolve the session from the cookie, hydrate `req.user`, and reject invalid/expired sessions.
-- Session persistence must be backed by Postgres (Neon) via a `sessions` table. In-memory stores are forbidden because Vercel functions are stateless across invocations.
+- Session persistence must be backed by PostgreSQL via a `sessions` table. In-memory stores are forbidden because Vercel functions are stateless across invocations.
 - Keep session read/write operations short and indexed (`session_id`, `expires_at`) to stay within serverless duration limits.
 - Logout must invalidate the session server-side and clear the cookie in the same response.
 
@@ -374,7 +373,7 @@ docs(agents): clarify RBAC middleware usage
 - Component tests for all page-level components using **Vitest** + **@testing-library/react**.
 - Test files colocate with their source file: `foo.js` → `foo.test.js`, `Foo.jsx` → `Foo.test.jsx`.
 - Coverage targets: 80% statements on server utils and controllers, 70% on client hooks.
-- Never mock the Neon database in integration tests — use a dedicated Neon test branch.
+- Never mock the PostgreSQL database in integration tests — use a dedicated test database branch.
 
 ---
 
@@ -383,7 +382,7 @@ docs(agents): clarify RBAC middleware usage
 - Use TypeScript — no `.ts` or `.tsx` files, no `tsconfig.json`, no type annotations or generics anywhere.
 - Use `require()` or `module.exports` — ES Modules (`import`/`export`) only throughout the repo.
 - Call `app.listen()` anywhere in the server — Vercel manages the HTTP lifecycle.
-- Import `neon` or `pg` directly in controllers or routes — always go through `db/client.js`.
+- Import `sequelize` or `pg` directly in controllers or routes — always go through `db/sequelize.js`.
 - Write raw `res.json()` or `res.send()` in routes or controllers — use `response.js` helpers only.
 - Use JWT authentication or bearer tokens — this project uses server-side session cookies only.
 - Fetch data directly inside React components — always go through `src/lib/api.js` and a hook.
