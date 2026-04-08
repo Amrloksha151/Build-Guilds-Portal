@@ -4,6 +4,7 @@
  * Do NOT deploy this file to production—Vercel uses api/index.js instead
  */
 
+import "dotenv/config";
 import app from "./api/index.js";
 
 const PORT = process.env.PORT || 3000;
