@@ -23,12 +23,12 @@ export function parseSessionTtlMs(ttl) {
 
 /**
  * @param {boolean} isProduction
- * @returns {{ httpOnly: boolean, secure: boolean, sameSite: "lax", path: string, maxAge: number }}
+ * @returns {{ httpOnly: boolean, secure: boolean | "auto", sameSite: "lax", path: string, maxAge: number }}
  */
 export function buildSessionCookieOptions(isProduction) {
   return {
     httpOnly: true,
-    secure: isProduction,
+    secure: isProduction ? "auto" : false,
     sameSite: "lax",
     path: "/",
     maxAge: parseSessionTtlMs(process.env.SESSION_TTL),

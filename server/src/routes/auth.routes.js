@@ -1,6 +1,7 @@
 import express from "express";
 import { z } from "zod";
 import authController from "../controllers/auth.controller.js";
+import { authMiddleware } from "../middleware/auth.middleware.js";
 import { authRateLimit } from "../middleware/rateLimit.middleware.js";
 import { validate } from "../middleware/validate.middleware.js";
 
@@ -20,7 +21,9 @@ const loginSchema = z
   })
   .strict();
 
+router.get("/csrf-token", authController.csrfToken);
 router.post("/register", authRateLimit, validate(registerSchema), authController.register);
 router.post("/login", authRateLimit, validate(loginSchema), authController.login);
+router.post("/logout", authMiddleware, authController.logout);
 
 export default router;
