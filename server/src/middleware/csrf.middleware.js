@@ -1,8 +1,8 @@
-import crypto from "node:crypto";
 import { sendError } from "../utils/response.js";
 import { verifyCsrfToken } from "../utils/csrf.js";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const CSRF_HEADER_NAME = "x-csrf-token";
 
 /**
  * @param {import('express').Request} req
@@ -16,17 +16,17 @@ export async function csrfMiddleware(req, res, next) {
     }
 
     const sessionSid = req.sessionID;
-    const csrfToken = req.get("x-csrf-token");
+    const csrfHeaderToken = req.get(CSRF_HEADER_NAME);
 
     if (!sessionSid) {
       return sendError(res, "Unauthorized", "UNAUTHORIZED", 401);
     }
 
-    if (!csrfToken) {
+    if (!csrfHeaderToken) {
       return sendError(res, "Missing CSRF token", "CSRF_TOKEN_REQUIRED", 403);
     }
 
-    const isValid = await verifyCsrfToken(sessionSid, csrfToken);
+    const isValid = await verifyCsrfToken(sessionSid, csrfHeaderToken);
 
     if (!isValid) {
       return sendError(res, "Invalid CSRF token", "CSRF_TOKEN_INVALID", 403);

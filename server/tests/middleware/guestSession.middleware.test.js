@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const csrfUtils = {
+  CSRF_COOKIE_NAME: "bgp_csrf",
   createOrRotateCsrfToken: vi.fn(),
 };
 
@@ -32,12 +33,15 @@ describe("guestSession.middleware", () => {
     const req = createReq({
       sessionOverrides: { userId: "user-1" },
     });
-    const res = {};
+    const res = {
+      cookie: vi.fn(),
+    };
     const next = vi.fn();
 
     await guestSessionMiddleware(req, res, next);
 
     expect(csrfUtils.createOrRotateCsrfToken).not.toHaveBeenCalled();
+    expect(res.cookie).not.toHaveBeenCalled();
     expect(next).toHaveBeenCalledTimes(1);
   });
 
@@ -45,7 +49,9 @@ describe("guestSession.middleware", () => {
     csrfUtils.createOrRotateCsrfToken.mockResolvedValue("token");
 
     const req = createReq();
-    const res = {};
+    const res = {
+      cookie: vi.fn(),
+    };
     const next = vi.fn();
 
     await guestSessionMiddleware(req, res, next);
@@ -54,7 +60,15 @@ describe("guestSession.middleware", () => {
     expect(typeof req.session.guestAssignedAt).toBe("string");
     expect(typeof req.session.csrfBootstrap).toBe("string");
     expect(typeof req.session.csrfTokenIssuedAt).toBe("string");
+    expect(req.csrfToken).toBe("token");
     expect(csrfUtils.createOrRotateCsrfToken).toHaveBeenCalledWith("guest-sid");
+    expect(res.cookie).toHaveBeenCalledWith(
+      "bgp_csrf",
+      "token",
+      expect.objectContaining({
+        httpOnly: false,
+      })
+    );
     expect(next).toHaveBeenCalledTimes(1);
   });
 
@@ -67,12 +81,15 @@ describe("guestSession.middleware", () => {
         csrfTokenIssuedAt: new Date().toISOString(),
       },
     });
-    const res = {};
+    const res = {
+      cookie: vi.fn(),
+    };
     const next = vi.fn();
 
     await guestSessionMiddleware(req, res, next);
 
     expect(csrfUtils.createOrRotateCsrfToken).not.toHaveBeenCalled();
+    expect(res.cookie).not.toHaveBeenCalled();
     expect(next).toHaveBeenCalledTimes(1);
   });
 });

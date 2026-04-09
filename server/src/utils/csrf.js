@@ -3,7 +3,9 @@ import { Op } from "sequelize";
 import CsrfToken from "../models/csrfToken.js";
 import { parseSessionTtlMs } from "./session.js";
 
-const CSRF_TOKEN_BYTES = 32;
+export const CSRF_COOKIE_NAME = process.env.CSRF_COOKIE_NAME || "bgp_csrf";
+
+const CSRF_TOKEN_BYTES = 16;
 const CSRF_TTL_MS = parseSessionTtlMs(process.env.SESSION_TTL);
 
 /**
@@ -26,16 +28,56 @@ export function hashCsrfToken(token) {
  * @returns {Promise<{ rawToken: string, expiresAt: Date }>}
  */
 export async function issueCsrfToken(sessionSid) {
+  if (!sessionSid) {
+    const error = new Error("Session not initialized");
+    error.statusCode = 401;
+    error.code = "UNAUTHORIZED";
+    throw error;
+  }
+
   const rawToken = generateRawCsrfToken();
   const tokenHash = hashCsrfToken(rawToken);
   const expiresAt = new Date(Date.now() + CSRF_TTL_MS);
 
-  await CsrfToken.upsert({
-    id: crypto.randomUUID(),
-    sessionSid,
-    tokenHash,
-    expiresAt,
+  const existingToken = await CsrfToken.findOne({
+    where: {
+      sessionSid,
+    },
   });
+
+  if (existingToken) {
+    existingToken.tokenHash = tokenHash;
+    existingToken.expiresAt = expiresAt;
+    await existingToken.save();
+
+    return { rawToken, expiresAt };
+  }
+
+  try {
+    await CsrfToken.create({
+      id: crypto.randomUUID(),
+      sessionSid,
+      tokenHash,
+      expiresAt,
+    });
+  } catch (error) {
+    // Handle concurrent first-write races by updating the session-scoped row.
+    if (error?.name !== "SequelizeUniqueConstraintError") {
+      throw error;
+    }
+
+    await CsrfToken.update(
+      {
+        tokenHash,
+        expiresAt,
+      },
+      {
+        where: {
+          sessionSid,
+        },
+      }
+    );
+  }
 
   return { rawToken, expiresAt };
 }
