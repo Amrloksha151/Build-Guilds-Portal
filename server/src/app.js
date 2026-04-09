@@ -8,6 +8,7 @@ import connectSessionSequelize from "connect-session-sequelize";
 import sequelize from "./db/sequelize.js";
 import Session from "./models/session.js";
 import { globalRateLimit } from "./middleware/rateLimit.middleware.js";
+import guestSessionMiddleware from "./middleware/guestSession.middleware.js";
 import csrfMiddleware from "./middleware/csrf.middleware.js";
 import { buildSessionCookieOptions, parseSessionTtlMs } from "./utils/session.js";
 
@@ -58,6 +59,7 @@ export function createApp() {
     })
   );
 
+  app.use(guestSessionMiddleware);
   app.use(csrfMiddleware);
 
   return app;

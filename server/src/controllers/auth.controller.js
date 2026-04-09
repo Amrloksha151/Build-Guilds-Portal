@@ -31,9 +31,17 @@ function regenerateSession(req) {
 }
 
 async function issueAuthPayload(req, user, message) {
+  const previousSessionSid = req.sessionID;
+
   await regenerateSession(req);
 
+  if (previousSessionSid && previousSessionSid !== req.sessionID) {
+    await revokeCsrfTokens(previousSessionSid);
+  }
+
   req.session.userId = user.id;
+  req.session.isGuest = false;
+  delete req.session.guestAssignedAt;
   req.session.authenticatedAt = new Date().toISOString();
   req.session.csrfBootstrap = crypto.randomUUID();
   req.session.csrfTokenIssuedAt = new Date().toISOString();
@@ -117,6 +125,11 @@ async function login(req, res, next) {
  */
 async function csrfToken(req, res, next) {
   try {
+    if (!req.session.userId) {
+      req.session.isGuest = true;
+      req.session.guestAssignedAt = req.session.guestAssignedAt || new Date().toISOString();
+    }
+
     req.session.csrfBootstrap = req.session.csrfBootstrap || crypto.randomUUID();
     req.session.csrfTokenIssuedAt = new Date().toISOString();
 
