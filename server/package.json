@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "node dev.js",
     "check": "node --input-type=module -e \"import { readdirSync } from 'node:fs'; import { join } from 'node:path'; import { spawnSync } from 'node:child_process'; const files = []; const walk = (dir) => { for (const entry of readdirSync(dir, { withFileTypes: true })) { const filePath = join(dir, entry.name); if (entry.isDirectory()) { walk(filePath); } else if (entry.isFile() && filePath.endsWith('.js')) { files.push(filePath); } } }; walk('api'); walk('src'); for (const filePath of files) { const result = spawnSync(process.execPath, ['--check', filePath], { stdio: 'inherit' }); if (result.status !== 0) process.exit(result.status ?? 1); }\"",
-    "test": "echo \"No tests configured yet\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "db:migration:create": "dotenv -e .env -- sequelize-cli migration:generate",
     "db:migrate": "dotenv -e .env -- sequelize-cli db:migrate",
     "db:migrate:undo": "dotenv -e .env -- sequelize-cli db:migrate:undo",
@@ -33,6 +35,8 @@
   },
   "devDependencies": {
     "dotenv-cli": "^8.0.0",
-    "sequelize-cli": "^6.6.3"
+    "sequelize-cli": "^6.6.3",
+    "supertest": "^7.1.1",
+    "vitest": "^3.2.4"
   }
 }

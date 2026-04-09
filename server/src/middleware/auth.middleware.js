@@ -15,7 +15,17 @@ export async function authMiddleware(req, res, next) {
     const user = await User.findByPk(req.session.userId);
 
     if (!user) {
-      req.session.destroy(() => {});
+      await new Promise((resolve, reject) => {
+        req.session.destroy((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+
+          resolve();
+        });
+      });
+
       return sendError(res, "Unauthorized", "UNAUTHORIZED", 401);
     }
 
