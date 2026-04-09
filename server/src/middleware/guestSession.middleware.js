@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
-import { createOrRotateCsrfToken } from "../utils/csrf.js";
+import { createOrRotateCsrfToken, CSRF_COOKIE_NAME } from "../utils/csrf.js";
+import { buildCsrfCookieOptions } from "../utils/session.js";
 
 function saveSession(session) {
   return new Promise((resolve, reject) => {
@@ -50,7 +51,11 @@ export async function guestSessionMiddleware(req, res, next) {
     await saveSession(req.session);
 
     if (shouldBootstrapCsrf && req.sessionID) {
-      await createOrRotateCsrfToken(req.sessionID);
+      const token = await createOrRotateCsrfToken(req.sessionID);
+      req.csrfToken = token;
+
+      const isProduction = process.env.NODE_ENV === "production";
+      res.cookie(CSRF_COOKIE_NAME, token, buildCsrfCookieOptions(isProduction));
     }
 
     return next();

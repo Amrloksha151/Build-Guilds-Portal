@@ -23,12 +23,27 @@ export function parseSessionTtlMs(ttl) {
 
 /**
  * @param {boolean} isProduction
- * @returns {{ httpOnly: boolean, secure: boolean | "auto", sameSite: "lax", path: string, maxAge: number }}
+ * @returns {{ httpOnly: boolean, secure: boolean, sameSite: "lax", path: string, maxAge: number }}
  */
 export function buildSessionCookieOptions(isProduction) {
   return {
     httpOnly: true,
-    secure: isProduction ? "auto" : false,
+    secure: isProduction,
+    sameSite: "lax",
+    path: "/",
+    maxAge: parseSessionTtlMs(process.env.SESSION_TTL),
+  };
+}
+
+/**
+ * @param {boolean} isProduction
+ * @returns {{ httpOnly: boolean, secure: boolean, sameSite: "lax", path: string, maxAge: number }}
+ */
+export function buildCsrfCookieOptions(isProduction) {
+  return {
+    // Must be readable by same-origin JS to mirror into x-csrf-token header.
+    httpOnly: false,
+    secure: isProduction,
     sameSite: "lax",
     path: "/",
     maxAge: parseSessionTtlMs(process.env.SESSION_TTL),

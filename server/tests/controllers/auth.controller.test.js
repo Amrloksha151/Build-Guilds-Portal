@@ -11,6 +11,7 @@ const hashUtils = {
 };
 
 const csrfUtils = {
+  CSRF_COOKIE_NAME: "bgp_csrf",
   createOrRotateCsrfToken: vi.fn(),
   revokeCsrfTokens: vi.fn(),
 };
@@ -29,8 +30,18 @@ function createRes() {
   return {
     statusCode: 200,
     body: null,
+    cookies: [],
+    clearedCookies: [],
     status(code) {
       this.statusCode = code;
+      return this;
+    },
+    cookie(name, value, options) {
+      this.cookies.push({ name, value, options });
+      return this;
+    },
+    clearCookie(name, options) {
+      this.clearedCookies.push({ name, options });
       return this;
     },
     json(payload) {
@@ -81,7 +92,15 @@ describe("auth.controller", () => {
     expect(typeof req.session.guestAssignedAt).toBe("string");
     expect(res.statusCode).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.data.csrfToken).toBe("guest-token");
+    expect(res.body.data.csrfCookie).toBe("bgp_csrf");
+    expect(res.cookies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "bgp_csrf",
+          value: "guest-token",
+        }),
+      ])
+    );
   });
 
   it("rejects duplicate usernames during registration", async () => {
@@ -125,7 +144,15 @@ describe("auth.controller", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.data.user.username).toBe("new-user");
-    expect(res.body.data.csrfToken).toBe("fresh-token");
+    expect(res.body.data.csrfToken).toBeUndefined();
+    expect(res.cookies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "bgp_csrf",
+          value: "fresh-token",
+        }),
+      ])
+    );
     expect(req.session.isGuest).toBe(false);
   });
 
@@ -165,5 +192,15 @@ describe("auth.controller", () => {
     expect(next).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(200);
     expect(res.body.success).toBe(true);
+    expect(res.clearedCookies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "bgp_csrf",
+          options: expect.objectContaining({
+            httpOnly: false,
+          }),
+        }),
+      ])
+    );
   });
 });

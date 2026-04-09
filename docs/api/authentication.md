@@ -13,7 +13,10 @@ All authentication endpoints are mounted under:
 - Authentication state is stored in a server-side session.
 - Session ID is sent in an HttpOnly cookie.
 - CSRF protection is required for unsafe HTTP methods (`POST`, `PATCH`, `PUT`, `DELETE`).
-- CSRF token is session-bound and must be sent in the `x-csrf-token` header.
+- CSRF token is delivered in the `bgp_csrf` cookie (or `CSRF_COOKIE_NAME` value if overridden).
+- For unsafe methods, clients must send the token in the `x-csrf-token` request header.
+- Server verifies the header token against the token stored for the current session.
+- Requests must include credentials/cookies so session and CSRF cookies are sent.
 
 ## Common response envelope
 
@@ -48,7 +51,8 @@ Error responses:
 Description:
 
 - Issues or rotates a CSRF token for the current session.
-- For anonymous visitors, this works with guest session flow and returns a valid token bound to that guest session.
+- For anonymous visitors, this works with guest session flow and sets a CSRF cookie bound to that guest session.
+- The token format is 32 hexadecimal characters.
 
 Example response:
 
@@ -56,7 +60,7 @@ Example response:
 {
   "success": true,
   "data": {
-    "csrfToken": "<token-value>"
+    "csrfCookie": "bgp_csrf"
   },
   "message": "CSRF token issued"
 }
@@ -67,7 +71,9 @@ Example response:
 - Method: `POST`
 - URL: `/api/v1/auth/register`
 - Auth required: No
-- CSRF header required: Yes (`x-csrf-token`)
+- CSRF required: Yes
+- CSRF cookie: `bgp_csrf`
+- CSRF header: `x-csrf-token` (validated against current session)
 
 Request body:
 
@@ -88,7 +94,6 @@ Success response (`200`):
       "username": "new_user",
       "role": "participant"
     },
-    "csrfToken": "<fresh-auth-token>",
     "message": "Registered successfully"
   },
   "message": "Registered successfully"
@@ -107,7 +112,9 @@ Common errors:
 - Method: `POST`
 - URL: `/api/v1/auth/login`
 - Auth required: No
-- CSRF header required: Yes (`x-csrf-token`)
+- CSRF required: Yes
+- CSRF cookie: `bgp_csrf`
+- CSRF header: `x-csrf-token` (validated against current session)
 
 Request body:
 
@@ -128,7 +135,6 @@ Success response (`200`):
       "username": "existing_user",
       "role": "participant"
     },
-    "csrfToken": "<fresh-auth-token>",
     "message": "Logged in successfully"
   },
   "message": "Logged in successfully"
@@ -147,7 +153,9 @@ Common errors:
 - Method: `POST`
 - URL: `/api/v1/auth/logout`
 - Auth required: Yes
-- CSRF header required: Yes (`x-csrf-token`)
+- CSRF required: Yes
+- CSRF cookie: `bgp_csrf`
+- CSRF header: `x-csrf-token` (validated against current session)
 
 Success response (`200`):
 
@@ -168,11 +176,11 @@ Common errors:
 ## Recommended client flow
 
 1. Call `GET /api/v1/auth/csrf-token`.
-2. Store returned `csrfToken` in memory on the client.
-3. Send the token in `x-csrf-token` for `POST /register` or `POST /login`.
-4. Replace token with the new `csrfToken` returned after successful auth.
-5. Use current token for any authenticated unsafe request.
-6. On logout, call `POST /api/v1/auth/logout` with `x-csrf-token`.
+2. Read the `bgp_csrf` cookie value on the client.
+3. For every unsafe request, send `x-csrf-token` with the same cookie value.
+4. Ensure credentials/cookies are included in all requests.
+5. After successful auth, the CSRF cookie is rotated automatically.
+6. On logout, call `POST /api/v1/auth/logout`; the CSRF cookie is cleared.
 
 ## cURL example
 
@@ -180,10 +188,13 @@ Common errors:
 # 1) Get CSRF token and store cookie
 curl -i -c cookies.txt http://localhost:3000/api/v1/auth/csrf-token
 
-# 2) Register using cookie + csrf header
+# 2) Extract CSRF cookie value and send it in x-csrf-token
+# (example shown with a placeholder)
+
+# 3) Register using cookie-backed session + csrf header
 curl -i -b cookies.txt -c cookies.txt \
   -H "Content-Type: application/json" \
-  -H "x-csrf-token: <token-from-step-1>" \
+  -H "x-csrf-token: <csrf-cookie-value>" \
   -d '{"username":"new_user","password":"strong_password"}' \
   http://localhost:3000/api/v1/auth/register
 ```

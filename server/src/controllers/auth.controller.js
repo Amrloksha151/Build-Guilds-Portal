@@ -1,8 +1,33 @@
 import crypto from "node:crypto";
 import User from "../models/user.js";
 import { hashPassword, verifyPassword } from "../utils/hash.js";
-import { createOrRotateCsrfToken, revokeCsrfTokens } from "../utils/csrf.js";
+import { createOrRotateCsrfToken, revokeCsrfTokens, CSRF_COOKIE_NAME } from "../utils/csrf.js";
 import { sendError, sendSuccess } from "../utils/response.js";
+import { buildCsrfCookieOptions } from "../utils/session.js";
+
+function isProductionEnvironment() {
+  return process.env.NODE_ENV === "production";
+}
+
+/**
+ * @param {import('express').Response} res
+ * @param {string} csrfToken
+ */
+function setCsrfCookie(res, csrfToken) {
+  res.cookie(CSRF_COOKIE_NAME, csrfToken, buildCsrfCookieOptions(isProductionEnvironment()));
+}
+
+/**
+ * @param {import('express').Response} res
+ */
+function clearCsrfCookie(res) {
+  res.clearCookie(CSRF_COOKIE_NAME, {
+    httpOnly: false,
+    secure: isProductionEnvironment(),
+    sameSite: "lax",
+    path: "/",
+  });
+}
 
 function saveSession(session) {
   return new Promise((resolve, reject) => {
@@ -30,7 +55,7 @@ function regenerateSession(req) {
   });
 }
 
-async function issueAuthPayload(req, user, message) {
+async function issueAuthPayload(req, res, user, message) {
   const previousSessionSid = req.sessionID;
 
   await regenerateSession(req);
@@ -49,13 +74,13 @@ async function issueAuthPayload(req, user, message) {
   const csrfToken = await createOrRotateCsrfToken(req.sessionID);
 
   await saveSession(req.session);
+  setCsrfCookie(res, csrfToken);
 
   return {
     user: {
       username: user.username,
       role: user.role,
     },
-    csrfToken,
     message,
   };
 }
@@ -85,7 +110,7 @@ async function register(req, res, next) {
       passwordHash,
     });
 
-    const payload = await issueAuthPayload(req, user, "Registered successfully");
+    const payload = await issueAuthPayload(req, res, user, "Registered successfully");
 
     return sendSuccess(res, payload, payload.message, 200);
   } catch (error) {
@@ -110,7 +135,7 @@ async function login(req, res, next) {
       return sendError(res, "Invalid credentials", "INVALID_CREDENTIALS", 401);
     }
 
-    const payload = await issueAuthPayload(req, user, "Logged in successfully");
+    const payload = await issueAuthPayload(req, res, user, "Logged in successfully");
 
     return sendSuccess(res, payload, payload.message, 200);
   } catch (error) {
@@ -125,6 +150,10 @@ async function login(req, res, next) {
  */
 async function csrfToken(req, res, next) {
   try {
+    if (!req.sessionID) {
+      return sendError(res, "Unauthorized", "UNAUTHORIZED", 401);
+    }
+
     if (!req.session.userId) {
       req.session.isGuest = true;
       req.session.guestAssignedAt = req.session.guestAssignedAt || new Date().toISOString();
@@ -133,10 +162,18 @@ async function csrfToken(req, res, next) {
     req.session.csrfBootstrap = req.session.csrfBootstrap || crypto.randomUUID();
     req.session.csrfTokenIssuedAt = new Date().toISOString();
 
-    const csrfToken = await createOrRotateCsrfToken(req.sessionID);
+    const token = req.csrfToken || (await createOrRotateCsrfToken(req.sessionID));
     await saveSession(req.session);
+    setCsrfCookie(res, token);
 
-    return sendSuccess(res, { csrfToken }, "CSRF token issued", 200);
+    return sendSuccess(
+      res,
+      {
+        csrfCookie: CSRF_COOKIE_NAME,
+      },
+      "CSRF token issued",
+      200
+    );
   } catch (error) {
     return next(error);
   }
@@ -162,6 +199,8 @@ async function logout(req, res, next) {
         resolve();
       });
     });
+
+    clearCsrfCookie(res);
 
     return sendSuccess(res, null, "Logged out successfully", 200);
   } catch (error) {
