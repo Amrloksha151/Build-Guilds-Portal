@@ -6,6 +6,9 @@
   "main": "api/index.js",
   "scripts": {
     "dev": "node dev.js",
+    "dev:server": "node dev.js",
+    "dev:client": "npm --prefix ../client/build-guilds run dev",
+    "dev:full": "concurrently -k -n server,client -c cyan,magenta \"npm:dev:server\" \"npm:dev:client\"",
     "check": "node --input-type=module -e \"import { readdirSync } from 'node:fs'; import { join } from 'node:path'; import { spawnSync } from 'node:child_process'; const files = []; const walk = (dir) => { for (const entry of readdirSync(dir, { withFileTypes: true })) { const filePath = join(dir, entry.name); if (entry.isDirectory()) { walk(filePath); } else if (entry.isFile() && filePath.endsWith('.js')) { files.push(filePath); } } }; walk('api'); walk('src'); for (const filePath of files) { const result = spawnSync(process.execPath, ['--check', filePath], { stdio: 'inherit' }); if (result.status !== 0) process.exit(result.status ?? 1); }\"",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -34,6 +37,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "dotenv-cli": "^8.0.0",
     "sequelize-cli": "^6.6.3",
     "supertest": "^7.1.1",

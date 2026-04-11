@@ -92,4 +92,25 @@ describe("guestSession.middleware", () => {
     expect(res.cookie).not.toHaveBeenCalled();
     expect(next).toHaveBeenCalledTimes(1);
   });
+
+  it("stops before CSRF issuance when session save fails", async () => {
+    const req = createReq({
+      sessionOverrides: {
+        save(callback) {
+          callback(new Error("session save failed"));
+        },
+      },
+    });
+    const res = {
+      cookie: vi.fn(),
+    };
+    const next = vi.fn();
+
+    await guestSessionMiddleware(req, res, next);
+
+    expect(csrfUtils.createOrRotateCsrfToken).not.toHaveBeenCalled();
+    expect(res.cookie).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next.mock.calls[0][0]).toBeInstanceOf(Error);
+  });
 });

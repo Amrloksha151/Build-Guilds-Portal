@@ -7,6 +7,10 @@ import { sendError } from "../utils/response.js";
  * @param {import('express').NextFunction} next
  */
 export function errorMiddleware(err, req, res, next) {
+  if (res.headersSent) {
+    return next(err);
+  }
+
   const statusCode = err.statusCode || 500;
   const code = err.code || "INTERNAL_SERVER_ERROR";
   const message = statusCode === 500 ? "Internal server error" : err.message;

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const userModel = {
   findOne: vi.fn(),
   create: vi.fn(),
+  destroy: vi.fn(),
 };
 
 const hashUtils = {
@@ -177,6 +178,69 @@ describe("auth.controller", () => {
     expect(res.statusCode).toBe(401);
     expect(res.body.success).toBe(false);
     expect(res.body.code).toBe("INVALID_CREDENTIALS");
+  });
+
+  it("returns auth payload for valid login", async () => {
+    userModel.findOne.mockResolvedValue({
+      id: "u1",
+      username: "user",
+      passwordHash: "hash",
+      role: "participant",
+    });
+    hashUtils.verifyPassword.mockReturnValue(true);
+    csrfUtils.createOrRotateCsrfToken.mockResolvedValue("login-token");
+
+    const req = createReq({
+      validatedBody: { username: "user", password: "good-password" },
+      sessionID: "guest-sid",
+    });
+    const res = createRes();
+    const next = vi.fn();
+
+    await authController.login(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(csrfUtils.revokeCsrfTokens).toHaveBeenCalledWith("guest-sid");
+    expect(csrfUtils.createOrRotateCsrfToken).toHaveBeenCalledWith("auth-sid");
+    expect(res.statusCode).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.user).toEqual({
+      username: "user",
+      role: "participant",
+    });
+    expect(res.cookies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "bgp_csrf",
+          value: "login-token",
+        }),
+      ])
+    );
+  });
+
+  it("rolls back created user when auth setup fails during register", async () => {
+    userModel.findOne.mockResolvedValue(null);
+    hashUtils.hashPassword.mockReturnValue("hashed-password");
+    userModel.create.mockResolvedValue({
+      id: "user-rollback",
+      username: "new-user",
+      role: "participant",
+    });
+    userModel.destroy.mockResolvedValue(1);
+    csrfUtils.createOrRotateCsrfToken.mockRejectedValue(new Error("csrf write failed"));
+
+    const req = createReq({
+      validatedBody: { username: "new-user", password: "password123" },
+      sessionID: "guest-sid",
+    });
+    const res = createRes();
+    const next = vi.fn();
+
+    await authController.register(req, res, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(userModel.destroy).toHaveBeenCalledWith({ where: { id: "user-rollback" } });
+    expect(res.body).toBeNull();
   });
 
   it("logs out by revoking token and destroying session", async () => {

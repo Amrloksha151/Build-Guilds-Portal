@@ -71,9 +71,9 @@ async function issueAuthPayload(req, res, user, message) {
   req.session.csrfBootstrap = crypto.randomUUID();
   req.session.csrfTokenIssuedAt = new Date().toISOString();
 
-  const csrfToken = await createOrRotateCsrfToken(req.sessionID);
-
   await saveSession(req.session);
+
+  const csrfToken = await createOrRotateCsrfToken(req.sessionID);
   setCsrfCookie(res, csrfToken);
 
   return {
@@ -91,6 +91,8 @@ async function issueAuthPayload(req, res, user, message) {
  * @param {import('express').NextFunction} next
  */
 async function register(req, res, next) {
+  let createdUser = null;
+
   try {
     const { username, password } = req.validated?.body || req.body;
     const normalizedUsername = username.trim();
@@ -105,15 +107,23 @@ async function register(req, res, next) {
 
     const passwordHash = hashPassword(password);
 
-    const user = await User.create({
+    createdUser = await User.create({
       username: normalizedUsername,
       passwordHash,
     });
 
-    const payload = await issueAuthPayload(req, res, user, "Registered successfully");
+    const payload = await issueAuthPayload(req, res, createdUser, "Registered successfully");
 
     return sendSuccess(res, payload, payload.message, 200);
   } catch (error) {
+    if (createdUser?.id) {
+      try {
+        await User.destroy({ where: { id: createdUser.id } });
+      } catch {
+        // Preserve the original auth failure as the response path.
+      }
+    }
+
     return next(error);
   }
 }
@@ -138,6 +148,30 @@ async function login(req, res, next) {
     const payload = await issueAuthPayload(req, res, user, "Logged in successfully");
 
     return sendSuccess(res, payload, payload.message, 200);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+/**
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ * @param {import('express').NextFunction} next
+ */
+async function me(req, res, next) {
+  try {
+    if (!req.user) {
+      return sendError(res, 'Unauthorized', 'UNAUTHORIZED', 401)
+    }
+
+    return sendSuccess(
+      res,
+      {
+        user: req.user,
+      },
+      'Current user loaded',
+      200,
+    )
   } catch (error) {
     return next(error);
   }
@@ -211,6 +245,7 @@ async function logout(req, res, next) {
 export default {
   register,
   login,
+  me,
   csrfToken,
   logout,
 };
