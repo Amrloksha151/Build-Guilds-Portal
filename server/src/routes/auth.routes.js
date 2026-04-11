@@ -22,6 +22,7 @@ const loginSchema = z
   .strict();
 
 router.get("/csrf-token", authController.csrfToken);
+router.get("/me", authMiddleware, authController.me);
 router.post("/register", authRateLimit, validate(registerSchema), authController.register);
 router.post("/login", authRateLimit, validate(loginSchema), authController.login);
 router.post("/logout", authMiddleware, authController.logout);

@@ -1,401 +1,478 @@
-# AGENTS.md — Build Guild Portal
-> Co-programming rules for GitHub Copilot and all AI agents working on this project.
-> Read this file in full before generating any code, file, or suggestion.
+# AGENTS.md — Build Guild Tanta Hackathon Portal
+> Guidelines for GitHub Copilot and all AI agents working on this codebase.
+> Read this file in full before touching any code.
 
 ---
 
-## Project Overview
+## 📌 Project Overview
 
-**Build Guild Portal** is an event management platform for a Build Guild hackathon/workshop event.
-Participants track activities, earn points, and collaborate in real-time during the event.
+This is the **Build Guild Tanta Hackathon Portal** — a web application for managing hackathon
+activities for the **Build Guild Tanta** event, organized under
+[Blueprint by Hack Club](https://blueprint.hackclub.com/guilds), taking place in **Tanta, Gharbia, Egypt**.
 
-| Layer       | Technology                                                          |
-|-------------|---------------------------------------------------------------------|
-| Client      | React + Vite + JavaScript + Tailwind CSS + React Router v6          |
-| Server      | Express.js + Sequelize + PostgreSQL + RESTful API                   |
-| Deployment  | Vercel — serverless functions (server) + static (client)            |
-| Design      | Blueprint style guide — see Design System section                   |
-| Components  | `@hackclub/theme-ui` components + Tailwind CSS utilities only       |
-| Icons       | `@hackclub/icons`                                                   |
+The event is a partnership between:
+- **Gharbiya STEM Hack Club** (the local Hack Club branch)
+- **Gharbiya STEM Robo Club** (the robotics club co-organizing the event)
 
----
+The portal serves four user roles, each with a distinct view of the application:
 
-## Repository Structure
+| Role | Who they are | What they see |
+|---|---|---|
+| **Guest** | Unauthenticated visitors | Public-facing info: event details, schedule, registration |
+| **Participant** | Registered attendees | Personal dashboard, team, project submission, announcements |
+| **Organizer** | Event staff from either club | Participant list, teams, projects, schedule management, announcements |
+| **Admin** | Lead organizers / super-users | Everything organizers see plus judging, user management, and settings |
 
-```
-build-guild-portal/
-├── AGENTS.md                          ← you are here
-├── vercel.json                        ← monorepo routing config
-├── shared/
-│   └── constants.js                   ← shared constants (roles, statuses…) used by both sides
-│
-├── client/                            ← React Vite app
-│   ├── index.html
-│   ├── vite.config.js
-│   ├── tailwind.config.js
-│   └── src/
-│       ├── main.jsx                   ← app entry + router bootstrap
-│       ├── components/
-│       │   ├── ui/                    ← wrappers around Hack Club theme-ui components
-│       │   ├── layout/                ← Nav, Sidebar, PageWrapper, Footer
-│       │   ├── activities/            ← ActivityCard, ActivityList, CheckInButton, StatusBadge
-│       │   └── auth/                  ← LoginForm, RegisterForm, ProtectedRoute
-│       ├── pages/                     ← one file per route (Dashboard, Activities, Leaderboard…)
-│       ├── hooks/                     ← custom hooks: useAuth, useActivities, useLeaderboard…
-│       ├── lib/
-│       │   ├── api.js                 ← ALL fetch calls live here — never fetch inside components
-│       │   ├── constants.js           ← client-side constants (routes, query keys…)
-│       │   └── helpers.js
-│       └── styles/
-│           └── global.css             ← Tailwind directives + blueprint font imports
-│
-└── server/                            ← Express.js API
-    ├── api/
-    │   └── index.js                   ← Vercel serverless entry point — wraps the Express app
-    └── src/
-        ├── app.js                     ← Express app factory — NO app.listen() here
-        ├── routes/                    ← route declarations only, zero business logic
-        │   ├── auth.routes.js
-        │   ├── activities.routes.js
-        │   ├── participants.routes.js
-        │   └── leaderboard.routes.js
-        ├── controllers/               ← one controller per resource, all business logic lives here
-        │   ├── auth.controller.js
-        │   ├── activities.controller.js
-        │   ├── participants.controller.js
-        │   └── leaderboard.controller.js
-        ├── middleware/
-        │   ├── auth.middleware.js     ← session validation, attaches req.user
-        │   ├── rbac.middleware.js     ← role-based access control
-        │   ├── validate.middleware.js ← Zod schema validation factory
-        │   ├── rateLimit.middleware.js
-        │   └── error.middleware.js    ← centralised error handler (always last)
-        ├── db/
-        │   ├── sequelize.js           ← Sequelize connection singleton
-        │   └── migrations/            ← numbered .sql files: 001_init.sql, 002_…sql
-        ├── models/                    ← JSDoc-documented shapes mirroring DB tables
-        └── utils/
-          ├── session.js             ← session store + cookie helpers
-            ├── hash.js                ← bcrypt helpers
-            └── response.js            ← sendSuccess / sendError / sendPaginated helpers
-```
-
-> **Rule**: Never create files outside this structure without a written justification comment at the top of the file explaining why.
+This file covers **frontend and design matters only**. It is the single source of truth for how
+the UI looks, what components exist, how they are structured, and which design rules must never
+be broken.
 
 ---
 
-## Language Rules — JavaScript Only
+## 🛠 Tech Stack
 
-This project uses **plain JavaScript (ES Modules)**. TypeScript is not used anywhere in this repo.
+| Layer | Tool |
+|---|---|
+| Framework | [Vite](https://vitejs.dev) + [React](https://react.dev) (latest stable) |
+| Language | JavaScript — **no TypeScript** |
+| Routing | [React Router v6](https://reactrouter.com) |
+| Styling | [Tailwind CSS v4](https://tailwindcss.com) |
+| Icons | [@hackclub/icons](https://icons.hackclub.com) — **only this icon set** |
+| UI Components | [Hack Club Theme](https://theme.hackclub.com) / [hackclub/css](https://github.com/hackclub/css) — **only these** |
+| Fonts | R&C (headings) + Phantom Sans (body) — **only these two fonts** |
+| Deployment | TBD (assume static output, `vite build`) |
 
-- All files use `.js` on the server and `.js` / `.jsx` on the client. No `.ts`, `.tsx`, or `tsconfig.json` files anywhere.
-- Use **ES Module syntax** (`import` / `export`) throughout — no `require()` or `module.exports`.
-- Client Vite config, Tailwind config, and all tooling config files are plain `.js`.
-- Use **JSDoc comments** to document function signatures on the server (`/** @param {string} id */`). This gives Copilot and editors useful hints without a TypeScript compiler.
-- Shared string constants (role names, activity statuses, etc.) live in `shared/constants.js` and are imported by both client and server. This replaces what would be a shared types file in TypeScript.
-- Do not add type annotations, generics, or type-only imports. If Copilot suggests TypeScript syntax, reject it and ask for plain JS.
-
----
-
-## Middleware Stack — Order Is Mandatory
-
-Every incoming request passes through middleware in exactly this order.
-Do not reorder, skip, or move any layer into controllers or route files.
-
-```
-Request
-  → cors()
-  → helmet()
-  → rateLimitMiddleware          ← global; authRateLimit applied additionally on /auth routes
-  → express.json()
-  → [authMiddleware]             ← protected routes only (session cookie validation)
-  → [optionalAuth]               ← public routes that benefit from knowing the user if present
-  → [rbacMiddleware]             ← role-restricted routes only
-  → [validateMiddleware]         ← routes with a request body or query schema
-  → controller function
-  → errorMiddleware              ← always last, registered after all routes in app.js
-```
+> ⚠️ **Do NOT introduce any other icon libraries (Heroicons, Lucide, FontAwesome, etc.).**
+> ⚠️ **Do NOT introduce any other UI component libraries (shadcn, DaisyUI, Flowbite, etc.).**
+> ⚠️ **Do NOT use system fonts or Google Fonts.** All typography must use R&C (headings) and Phantom Sans (body).
+> ⚠️ **Do NOT add TypeScript.** All files are `.js` / `.jsx` only.
 
 ---
 
-## RESTful API Conventions
-
-All endpoints live under `/api/v1/`. Follow these URL patterns strictly:
-
-| Action         | Method | Path                              |
-|----------------|--------|-----------------------------------|
-| List           | GET    | `/api/v1/{resource}`              |
-| Get one        | GET    | `/api/v1/{resource}/:id`          |
-| Create         | POST   | `/api/v1/{resource}`              |
-| Partial update | PATCH  | `/api/v1/{resource}/:id`          |
-| Delete         | DELETE | `/api/v1/{resource}/:id`          |
-| Sub-action     | POST   | `/api/v1/{resource}/:id/action`   |
-
-**Response envelope** — every response must use one of the three helpers in `utils/response.js`:
-
-```js
-// Success
-sendSuccess(res, data, message, statusCode)
-// → { success: true, data, message? }
-
-// Error
-sendError(res, message, code, statusCode)
-// → { success: false, error, code, statusCode }
-
-// Paginated list
-sendPaginated(res, data, total, page, pageSize)
-// → { success: true, data, pagination: { page, pageSize, total, totalPages } }
-```
-
-Never call `res.json()` or `res.send()` directly in routes or controllers.
-
----
-
-## Permissions Matrix
-
-Roles are loaded from the server-side session as `req.user.role`. The `rbacMiddleware` reads `req.user.role`.
-Role strings are defined as constants in `shared/constants.js` — never hardcode the string `'admin'` etc. inline.
-Use `requireRole(...roles)` for minimum-role gates and `requireSelfOrRole(paramKey, ...roles)` for self-or-elevated access.
-
-| Role          | Activities  | Check-in  | Leaderboard | Participants | Admin Routes |
-|---------------|-------------|-----------|-------------|--------------|--------------|
-| `guest`       | read        | ✗         | read        | ✗            | ✗            |
-| `participant` | read        | self only | read        | own profile  | ✗            |
-| `organizer`   | full CRUD   | any       | read        | read all     | ✗            |
-| `admin`       | full CRUD   | any       | full CRUD   | full CRUD    | ✓            |
-
-Role hierarchy (ascending): `guest` → `participant` → `organizer` → `admin`
-
----
-
-## Database Rules (Sequelize / PostgreSQL)
-
-- Use `sequelize` with PostgreSQL — instantiate the singleton **once at module scope** in `db/sequelize.js` and reuse it across warm invocations.
-- All database access should go through the shared Sequelize instance or model modules that import it from `db/sequelize.js`.
-- When using raw SQL through Sequelize, keep queries parameterised. No string interpolation in SQL. Ever.
-- Migrations live in `src/db/migrations/` as numbered SQL files (`001_init.sql`, `002_add_teams.sql`…).
-- Schema changes always require a new migration file — never alter existing migration files after they have been committed.
-
----
-
-## Vercel Serverless Rules
-
-- `src/app.js` exports an Express `app` created by a factory function `createApp()`. It must **never** call `app.listen()`.
-- `api/index.js` is the only file that exports the serverless handler: `export default app`.
-- `vercel.json` rewrites `/api/*` to the serverless function and all other paths to `index.html` for the SPA.
-- The `buildCommand` in `vercel.json` should point to `client/` and `outputDirectory` to `client/dist`.
-- Keep the Express app and Sequelize instance at **module scope** (outside the handler function) to survive warm invocations without re-initialisation.
-- Maximum function duration is 10 seconds — avoid long-running synchronous operations.
-
-### Session Authentication on Serverless (Mandatory)
-
-- Authentication must use **server-side sessions with secure HttpOnly cookies**, not JWT bearer tokens.
-- Use `cookie-parser` and `crypto` (Node built-in) to issue opaque session IDs; never put role, user ID, or permissions in client-readable cookies.
-- Session cookies must be configured as: `HttpOnly`, `Secure` in production, `SameSite=Lax` (or `None` only when cross-site is required with HTTPS), and path `/`.
-- `authMiddleware` must resolve the session from the cookie, hydrate `req.user`, and reject invalid/expired sessions.
-- Session persistence must be backed by PostgreSQL via a `sessions` table. In-memory stores are forbidden because Vercel functions are stateless across invocations.
-- Keep session read/write operations short and indexed (`session_id`, `expires_at`) to stay within serverless duration limits.
-- Logout must invalidate the session server-side and clear the cookie in the same response.
-
-```json
-{
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/server/api/index" },
-    { "source": "/((?!api).*)", "destination": "/index.html" }
-  ],
-  "functions": {
-    "server/api/index.js": { "maxDuration": 10 }
-  }
-}
-```
-
----
-
-## Client Rules
-
-### Routing
-- Use React Router v6 with `createBrowserRouter` and `<RouterProvider>` in `main.jsx`.
-- Nested layouts use `<Outlet />` — never nest `<Routes>` inside components.
-- Protected routes wrap children with `<ProtectedRoute>` which reads `useAuth()` and redirects unauthenticated users to `/login`.
-
-### State & Data Fetching
-- Global auth state lives in a React Context provided at the root. Access via `useAuth()` hook.
-- Server state (activities, leaderboard, etc.) uses **React Query** (`@tanstack/react-query`).
-- All API calls are defined as functions in `src/lib/api.js` and consumed by hooks in `src/hooks/`.
-- Never call `fetch` or `axios` directly inside a component or page.
-
-### Styling — Hack Club Components + Tailwind Only
-- UI is built exclusively with **Hack Club theme-ui components** (`@hackclub/theme-ui`) and **Tailwind CSS utility classes**.
-- **Bootstrap is strictly forbidden.** Do not install or reference `bootstrap`, `react-bootstrap`, or any Bootstrap-derived library anywhere in the project.
-- No inline `style={}` props, no CSS modules, no styled-components, no other component libraries.
-- Hack Club components (`Box`, `Card`, `Button`, `Badge`, `Input`, `Text`, `Heading`, `Container`, `Grid`, `Flex`…) handle base structure and semantic HTML.
-- Tailwind utility classes layer Blueprint design tokens on top of Hack Club components via the `className` prop.
-- All icons import from `@hackclub/icons`: `import Icon from '@hackclub/icons/Icon'` (named per-icon imports, not the barrel).
-- Responsive breakpoints follow Tailwind defaults: `sm` 640px / `md` 768px / `lg` 1024px / `xl` 1280px.
-
-### Component Rules
-- Functional components only — no class components.
-- Every component file exports its component as the **default export**.
-- Utility files, hooks, and lib files use **named exports only**.
-- Prop documentation uses JSDoc `/** @param {object} props */` comments on the component function.
-
----
-
-## Design System — Blueprint Style
-
-The UI follows the "Blueprint" engineering aesthetic from the project style guide.
+## 🎨 Brand & Styling Guidelines
 
 ### Color Palette
 
-Configure all tokens as custom Tailwind colors under `theme.extend.colors.blueprint` in `tailwind.config.js`.
+These are the **only** colors to use — derived directly from the Blueprint style guide.
+Reference them via CSS custom properties.
 
-| Token          | Hex       | Tailwind class          | Usage                              |
-|----------------|-----------|-------------------------|------------------------------------|
-| Dark           | `#0E305B` | `blueprint-dark`        | Primary background, cards          |
-| Darker         | `#081C35` | `blueprint-darker`      | Deepest bg, navbars                |
-| Light          | `#DBE4EE` | `blueprint-light`       | Light surfaces, input borders      |
-| Danger         | `#FE8E86` | `blueprint-danger`      | Error states, destructive actions  |
-| Warning        | `#FFC857` | `blueprint-warning`     | Warnings, pending/in-progress      |
-| Success        | `#A8F0AE` | `blueprint-success`     | Completed, confirmed, live         |
+```css
+/* ── Blueprint Brand Colors ──────────────────────────────── */
+--color-dark:    #0E305B;   /* Deep navy — primary background */
+--color-darker:  #081C35;   /* Deeper navy — card/overlay bg  */
+--color-light:   #DBE4EE;   /* Off-white — light surfaces     */
+
+/* ── Semantic States ─────────────────────────────────────── */
+--color-danger:  #FE8E86;   /* Danger / error — coral red     */
+--color-warning: #FFC857;   /* Warning / caution — amber      */
+--color-success: #A8F0AE;   /* Success / confirmation — mint  */
+```
+
+Text colors per the style guide:
+- On `--color-dark` / `--color-darker` → **white text**
+- On `--color-light` → **dark text** (e.g. `--color-darker`)
+- On semantic surfaces → text in the matching semantic color
+
+Extend these in Tailwind config as custom colors so they're available as `bg-dark`, `bg-darker`,
+`bg-light`, `text-danger`, `text-warning`, `text-success`, etc.
+
+> ⚠️ **No Hack Club brand colors** (`#ec3750`, `#ff8c37`, `#33d6a6`, etc.) — do not use them.
+> Blueprint has its own palette and that is the only source of truth for color in this portal.
+
+---
 
 ### Typography
 
-| Role      | Font              | Tailwind class   | Apply to                     |
-|-----------|-------------------|------------------|------------------------------|
-| Headings  | R&C Guidelines    | `font-display`   | H1, H2, H3, hero text        |
-| Body      | Phantom Sans      | `font-sans`      | All body copy, UI labels     |
+Two fonts are used — one for headings, one for body. No other fonts are permitted.
 
-Import both fonts in `src/styles/global.css`.
-In `tailwind.config.js` set:
-- `theme.extend.fontFamily.sans` → `['Phantom Sans', 'sans-serif']`
-- `theme.extend.fontFamily.display` → `['R&C Guidelines', 'sans-serif']`
+#### Display / Heading Font — R&C (by JBFoundry)
 
-### Text on Coloured Backgrounds
+**R&C** is the heading font. It is a geometric, grid-based display font with a technical
+drafting / blueprint aesthetic — characters are constructed with compass-and-ruler construction
+lines visible beneath the letterforms.
 
-| Background           | Text colour                              |
-|----------------------|------------------------------------------|
-| `blueprint-dark`     | White `#FFFFFF`                          |
-| `blueprint-darker`   | White `#FFFFFF`                          |
-| `blueprint-light`    | `blueprint-darker` (`#081C35`)           |
-| `blueprint-danger`   | Danger dark variant — never plain black  |
-| `blueprint-warning`  | Warning dark variant — never plain black |
-| `blueprint-success`  | Success dark variant — never plain black |
+The font has four variants:
 
-### Activity Status → Colour Mapping
+| Variant | CSS font-family | Use case |
+|---|---|---|
+| **Full** | `'RC'` | Page titles, dashboard headings — fully opaque white |
+| **Dark** | `'RC Dark'` | Panel/section headings on dark backgrounds |
+| **Light** | `'RC Light'` | Decorative / ghosted labels layered behind content |
+| **Empty** | `'RC Empty'` | Outline-only / hollow text for decorative use |
 
-| Status      | Badge background       | Badge text         |
-|-------------|------------------------|--------------------|
-| `upcoming`  | `blueprint-light`      | `blueprint-darker` |
-| `live`      | `blueprint-success`    | success dark       |
-| `completed` | `blueprint-darker`     | white              |
-| `cancelled` | `blueprint-danger`     | danger dark        |
+**Licensing:** R&C is free for personal/demo use. The commercial license is at
+`myfonts.com/fonts/jbfoundry/r-c/`. Self-host all font files in `public/fonts/` and declare
+them via `@font-face` in `src/index.css`:
 
----
+```css
+/* R&C — Full (primary headings) */
+@font-face {
+  font-family: 'RC';
+  src: local('R&C'),
+       url('/fonts/RC.woff2') format('woff2'),
+       url('/fonts/RC.woff')  format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+/* R&C — Dark */
+@font-face {
+  font-family: 'RC Dark';
+  src: local('R&C Dark'),
+       url('/fonts/RCDark.woff2') format('woff2'),
+       url('/fonts/RCDark.woff')  format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+/* R&C — Light */
+@font-face {
+  font-family: 'RC Light';
+  src: local('R&C Light'),
+       url('/fonts/RCLight.woff2') format('woff2'),
+       url('/fonts/RCLight.woff')  format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+/* R&C — Empty */
+@font-face {
+  font-family: 'RC Empty';
+  src: local('R&C Empty'),
+       url('/fonts/RCEmpty.woff2') format('woff2'),
+       url('/fonts/RCEmpty.woff')  format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+```
 
-## Validation Rules
+> 🔑 **TODO for project lead**: Download the font files from dafont.com/r-c.font or purchase the
+> commercial license from myfonts.com/fonts/jbfoundry/r-c/, place `.woff` and `.woff2` files in
+> `public/fonts/`, and remove this TODO once done.
 
-- All request bodies and query strings are validated with **Zod schemas**.
-- Zod schemas are defined inline in the route file, adjacent to the route that uses them.
-- Use the `validate(schema, target)` middleware factory from `middleware/validate.middleware.js`.
-- On validation failure the middleware returns HTTP 422 with an `issues` array — never throw manually.
-- Never use `express-validator`, manual `if (!body.x)` guards, or `assert` for request validation.
+In Tailwind config, extend `fontFamily`:
 
----
+```js
+fontFamily: {
+  display:         ['"RC"',       'sans-serif'],
+  'display-dark':  ['"RC Dark"',  'sans-serif'],
+  'display-light': ['"RC Light"', 'sans-serif'],
+  'display-empty': ['"RC Empty"', 'sans-serif'],
+  sans:            ['"Phantom Sans"', 'system-ui', 'sans-serif'],
+},
+```
 
-## Error Handling Rules
+Apply `font-display` on `h1`/`h2` and `font-display-dark` on `h3` in the global base layer.
+Use `font-sans` for all body text, labels, inputs, and table content.
 
-- Every controller function must be wrapped in `try/catch`.
-- On catch, call `next(error)` — do not call `sendError` inside a catch block directly.
-- Attach `statusCode` and `code` properties to thrown errors so `errorMiddleware` serialises them correctly.
-- `errorMiddleware` is the single place that writes error responses to the client.
-- Never log `req.body`, tokens, passwords, or any PII. Redact before logging.
-- In production (`NODE_ENV=production`) stack traces must not appear in API responses.
+#### Body Font — Phantom Sans (Hack Club brand font)
 
----
+Load all three weights from Hack Club's asset CDN:
 
-## Environment Variables
+```css
+@font-face {
+  font-family: 'Phantom Sans';
+  src: url('https://assets.hackclub.com/fonts/Phantom_Sans_0.7/Regular.woff2') format('woff2'),
+       url('https://assets.hackclub.com/fonts/Phantom_Sans_0.7/Regular.woff')  format('woff');
+  font-weight: normal; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Phantom Sans';
+  src: url('https://assets.hackclub.com/fonts/Phantom_Sans_0.7/Italic.woff2') format('woff2'),
+       url('https://assets.hackclub.com/fonts/Phantom_Sans_0.7/Italic.woff')  format('woff');
+  font-weight: normal; font-style: italic; font-display: swap;
+}
+@font-face {
+  font-family: 'Phantom Sans';
+  src: url('https://assets.hackclub.com/fonts/Phantom_Sans_0.7/Bold.woff2') format('woff2'),
+       url('https://assets.hackclub.com/fonts/Phantom_Sans_0.7/Bold.woff')  format('woff');
+  font-weight: bold; font-style: normal; font-display: swap;
+}
+```
 
-Secrets live in `.env` (local) and Vercel Environment Settings (production). **Never commit `.env`.**
+#### Typography Scale
 
-```env
-# Server
-DATABASE_URL=          # Neon connection string (required)
-SESSION_SECRET=        # minimum 32 random characters (required)
-SESSION_TTL=           # e.g. "7d"
-SESSION_COOKIE_NAME=   # e.g. "bgp_session"
-CORS_ORIGIN=           # client origin URL
-
-# Client (Vite — must be prefixed VITE_)
-VITE_API_BASE_URL=     # server API base URL
+```
+h1 (page title)     → font-display,       text-4xl–6xl, font-normal, tracking-wide, uppercase
+h2 (section title)  → font-display,       text-2xl–4xl, font-normal
+h3 (panel title)    → font-display-dark,  text-xl–2xl,  font-normal
+h4+, table headers  → font-sans bold,     text-base–lg
+body / paragraphs   → font-sans,          text-base, leading-relaxed
+labels / captions   → font-sans,          text-sm, opacity-70
+form inputs         → font-sans,          text-base
 ```
 
 ---
 
-## Feature Development Workflow
+### Visual Style — Blueprint Aesthetic
 
-When adding any new feature, work through layers **in this order** — do not skip steps:
+The portal shares the same engineering/blueprint drafting aesthetic as the public event site:
+dark navy backgrounds, fine white grid lines, and vivid accent colors. Think: "technical
+drawing brought to life."
 
-1. `shared/constants.js` — add any new role names, status values, or shared string constants
-2. `server/src/db/migrations/` — new `.sql` file if the schema changes
-3. `server/src/models/` — JSDoc-documented shape for the new resource
-4. `server/src/controllers/` — controller functions with full try/catch + `next(error)`
-5. `server/src/routes/` — register routes with the correct middleware chain
-6. `client/src/lib/api.js` — API call function for the new endpoint
-7. `client/src/hooks/` — React Query hook wrapping the API call
-8. `client/src/pages/` or `client/src/components/` — UI built with Hack Club components + Tailwind
+Rules to follow:
 
----
-
-## Commit Convention
-
-```
-<type>(<scope>): <short imperative description>
-```
-
-**Types**: `feat` · `fix` · `chore` · `docs` · `refactor` · `test` · `style`
-
-**Scopes**: `auth` · `activities` · `leaderboard` · `participants` · `ui` · `db` · `deploy` · `shared` · `config`
-
-Examples:
-```
-feat(activities): add check-in endpoint with point calculation
-fix(auth): handle expired session gracefully in authMiddleware
-chore(db): add migration for teams table
-docs(agents): clarify RBAC middleware usage
-```
-
----
-
-## Testing Guidelines
-
-- Unit tests for all functions in `utils/` using **Vitest**.
-- Integration tests for all API routes using **Supertest** (run the real Express app, no mocking).
-- Component tests for all page-level components using **Vitest** + **@testing-library/react**.
-- Test files colocate with their source file: `foo.js` → `foo.test.js`, `Foo.jsx` → `Foo.test.jsx`.
-- Coverage targets: 80% statements on server utils and controllers, 70% on client hooks.
-- Never mock the PostgreSQL database in integration tests — use a dedicated test database branch.
+- **Background**: Always `--color-dark` (`#0E305B`) as the root/page background.
+- **Sidebar / navigation panel**: Use `--color-darker` (`#081C35`) as the background.
+- **Blueprint grid**: A subtle CSS background-image grid using thin white lines at low opacity
+  (`rgba(255,255,255,0.05)`) on dashboard hero areas and prominent section headers.
+- **Card / panel surfaces**: `--color-darker` background, `1px solid rgba(255,255,255,0.1)` border.
+  No drop shadows — rely on the border alone to define surfaces.
+- **Headings**: White, uppercase for h1; sentence-case acceptable for h2/h3.
+- **Accent**: `--color-warning` (`#FFC857`) for primary CTAs, active nav states, and key highlights.
+  `--color-success` (`#A8F0AE`) for confirmed/approved statuses and success feedback.
+  `--color-danger` (`#FE8E86`) for destructive actions, errors, and rejection states only.
+- **Buttons**:
+  - Primary: solid white background, `--color-darker` text. Hover: `hover:brightness-110`.
+  - Outline: `1px solid white`, transparent background, white text.
+  - Destructive: `--color-danger` background, dark text.
+  - No other button color schemes.
+- **Form inputs**: `--color-darker` background, `1px solid rgba(255,255,255,0.15)` border,
+  white text, `--color-warning` focus ring. Placeholder text at 50% white opacity.
+- **Tables**: Alternating rows using `rgba(255,255,255,0.03)`. Header row uses `--color-darker`
+  background with `--color-warning` text.
+- **Status badges**: Pill-shaped. Background at 15% opacity of the semantic color, border at
+  60% opacity, text in the full semantic color.
+  Example — pending: `bg-warning/15 border border-warning/60 text-warning`.
+- **Section / panel dividers**: Dashed or dotted white lines at `rgba(255,255,255,0.12)` opacity,
+  not solid full-opacity lines.
 
 ---
 
-## Things Copilot Must Never Do
+## 🖼 Logos & Assets
 
-- Use TypeScript — no `.ts` or `.tsx` files, no `tsconfig.json`, no type annotations or generics anywhere.
-- Use `require()` or `module.exports` — ES Modules (`import`/`export`) only throughout the repo.
-- Call `app.listen()` anywhere in the server — Vercel manages the HTTP lifecycle.
-- Import `sequelize` or `pg` directly in controllers or routes — always go through `db/sequelize.js`.
-- Write raw `res.json()` or `res.send()` in routes or controllers — use `response.js` helpers only.
-- Use JWT authentication or bearer tokens — this project uses server-side session cookies only.
-- Fetch data directly inside React components — always go through `src/lib/api.js` and a hook.
-- Hardcode role or status strings inline — always import them from `shared/constants.js`.
-- Add new middleware inside a controller or route handler body.
-- Use `express-validator` — Zod is the only permitted validation library.
-- Commit `.env` or any file containing secrets or credentials.
-- Include stack traces in production API error responses.
-- Use string interpolation inside SQL queries — parameterised queries only.
-- Use `useEffect` + `fetch` for data fetching — use React Query hooks instead.
-- Use Bootstrap, `react-bootstrap`, or any Bootstrap-derived library — the UI stack is Hack Club components + Tailwind only.
-- Use any component library other than `@hackclub/theme-ui` — no MUI, Chakra, Ant Design, shadcn, Radix primitives, etc.
-- Add inline `style={}` props for layout or theming — use Tailwind classes and Blueprint tokens instead.
-- Import icons from any source other than `@hackclub/icons`.
+### Primary Logo (Temporary)
+
+Use the official Hack Club flag logo from the asset CDN until the event logo is finalized:
+
+```html
+<!-- Preferred: Flag with Orpheus on top -->
+<img src="https://assets.hackclub.com/flag-orpheus-top.svg" alt="Hack Club" />
+
+<!-- Fallback: standalone flag -->
+<img src="https://assets.hackclub.com/flag-standalone.svg" alt="Hack Club" />
+
+<!-- Icon only (for favicon / compact sidebar) -->
+<img src="https://assets.hackclub.com/icon-rounded.svg" alt="Hack Club" />
+```
+
+### Partner Logos
+
+Placeholder components must be created for:
+1. `GharbiyaSTEMHackClubLogo` — replace when real asset is provided
+2. `GharbiyaSTEMRoboClubLogo` — replace when real asset is provided
+
+Use a styled placeholder `<div>` with the org name until real assets arrive.
+Mark with `{/* TODO: replace with actual logo asset */}`.
+
+### Logo Usage Rules
+
+- Never distort, recolor, or add effects to Hack Club logos.
+- Never place a Hack Club logo on a background that makes it hard to read.
+- Always link the Hack Club logo to `https://hackclub.com`.
 
 ---
+
+## 🗂 Portal Structure
+
+```
+src/
+├── main.jsx                          # Vite entry — mounts <App />, imports index.css
+├── App.jsx                           # Root component — React Router route definitions
+├── index.css                         # Font-face declarations, CSS custom properties, base styles
+├── pages/
+│   ├── Login.jsx                     # Login page — centered card, no sidebar
+│   ├── guest/
+│   │   ├── Home.jsx                  # Landing: event info, schedule, register CTA
+│   │   └── Register.jsx              # Registration form
+│   ├── participant/
+│   │   ├── Dashboard.jsx             # Personal overview: team, project status, next event
+│   │   ├── Team.jsx                  # My team — members, invite code
+│   │   ├── Project.jsx               # Submit / edit project
+│   │   ├── Schedule.jsx              # Read-only event schedule
+│   │   └── Announcements.jsx         # Read-only announcement feed
+│   ├── organizer/
+│   │   ├── Dashboard.jsx             # Overview stats: registrations, teams, submissions
+│   │   ├── Participants.jsx          # Participant list with search/filter
+│   │   ├── Teams.jsx                 # Team list — name, members, project status
+│   │   ├── Projects.jsx              # All submitted projects
+│   │   ├── Schedule.jsx              # Schedule builder (CRUD)
+│   │   └── Announcements.jsx         # Create / edit / delete announcements
+│   └── admin/
+│       ├── Dashboard.jsx             # Full overview + judging + user management links
+│       ├── Judging.jsx               # Assign judges, enter scores, view leaderboard
+│       ├── Users.jsx                 # User list — manage roles
+│       └── Settings.jsx              # Event config
+├── layouts/
+│   ├── GuestLayout.jsx               # Guest shell — top nav, no sidebar
+│   ├── ParticipantLayout.jsx         # Participant shell — sidebar + top bar
+│   ├── OrganizerLayout.jsx           # Organizer shell — sidebar + top bar
+│   └── AdminLayout.jsx               # Admin shell — sidebar + top bar (extends organizer nav)
+├── components/
+│   ├── layout/
+│   │   ├── Sidebar.jsx               # Role-aware sidebar navigation
+│   │   ├── TopBar.jsx                # Page title (RC font), user name, role badge
+│   │   ├── GuestNav.jsx              # Top navigation bar for guest views
+│   │   └── Footer.jsx                # Portal footer — HC attribution, partner logos
+│   ├── sections/
+│   │   ├── GuestHero.jsx             # Guest landing hero with event name + register CTA
+│   │   ├── GuestSchedule.jsx         # Read-only schedule for the guest view
+│   │   ├── AnnouncementFeed.jsx      # Announcement list (shared by participant + organizer)
+│   │   ├── SchedulePanel.jsx         # Schedule display (shared, read-only)
+│   │   └── OrganizerStats.jsx        # Stat tiles row on organizer/admin dashboard
+│   └── ui/
+│       ├── Button.jsx                # Primary / outline / destructive variants
+│       ├── Card.jsx                  # Blueprint-styled panel
+│       ├── Badge.jsx                 # Status badges (pending/success/danger/warning)
+│       ├── Table.jsx                 # Styled data table
+│       ├── Input.jsx                 # Styled text input / textarea
+│       ├── Modal.jsx                 # Overlay dialog
+│       ├── Toast.jsx                 # Success / error / warning notifications
+│       └── SectionHeading.jsx        # Consistent h2/h3 section title treatment
+public/
+└── fonts/                            # Self-hosted R&C font files (.woff / .woff2)
+```
+
+---
+
+## 🧩 Component Conventions
+
+### JSX Components
+
+- All component files use `.jsx`. Never introduce `.ts` or `.tsx`.
+- Prefer Server Components for layout and display content.
+- Add `'use client'` only when the component genuinely needs browser APIs or event handlers.
+- Never use `'use client'` on layout shells or purely display components.
+
+### Hack Club Icons
+
+Import from `@hackclub/icons`:
+
+```jsx
+import Icon from '@hackclub/icons'
+```
+
+Reference icons at https://icons.hackclub.com — **only use icons from this set.**
+
+Useful icons for the portal: `person`, `email`, `clubs`, `flag`, `calendar`, `clock`,
+`bolt`, `hardware`, `check`, `x`, `edit`, `trash`, `external`, `github`, `slack`,
+`chart-bar`, `door-enter`, `settings`, `announcement`.
+
+### Tailwind Usage
+
+- Use Tailwind utility classes directly in markup — no custom CSS unless strictly necessary.
+- Extend `tailwind.config.mjs` with the brand colors and font families defined above.
+- Use `@apply` sparingly; prefer inline utilities.
+- Responsive breakpoints: mobile-first. Key breakpoints: `sm` (640px), `md` (768px), `lg` (1024px).
+- The sidebar collapses to a bottom nav or hamburger drawer on `sm` screens.
+
+### Role-Aware UI
+
+Components that vary by role accept a `role` prop and render the appropriate variant.
+Never show organizer or admin controls to participants or guests — gate them visually with
+a role value passed down from the layout.
+
+```jsx
+// Show edit controls only to organizers and admins
+{(role === 'organizer' || role === 'admin') && (
+  <Button variant="outline">Edit</Button>
+)}
+```
+
+### Null / Empty State Handling
+
+Never render raw `null`, `undefined`, or empty arrays to the DOM:
+
+| Data state | What to render |
+|---|---|
+| `null` date / time | `"Coming Soon"` with a `--color-warning` badge |
+| `null` venue | `"Venue to be announced"` as muted placeholder |
+| Empty list (participants, projects, etc.) | Empty-state card with an icon and a short message |
+| Unsubmitted project | `"Not submitted"` badge in `--color-warning` |
+| No team assigned | `"No team"` muted label |
+| Score not entered | `"—"` dash, not `0` or blank |
+
+---
+
+## ✨ UI Patterns to Follow
+
+| Pattern | Component |
+|---|---|
+| Guest landing hero with event name + register CTA | `GuestHero.jsx` |
+| Top nav for unauthenticated / guest views | `GuestNav.jsx` |
+| Role-aware sidebar with active link highlight in `--color-warning` | `Sidebar.jsx` |
+| Top bar with page title in RC font, user name, role badge | `TopBar.jsx` |
+| Blueprint-styled card panel with heading + content slot | `Card.jsx` |
+| Stat tile (icon + number + label) for dashboard overviews | `OrganizerStats.jsx` |
+| Searchable, filterable data table | `Table.jsx` + filter controls above |
+| Status badge — pill shape, semantic color at varied opacities | `Badge.jsx` |
+| Confirmation modal before any destructive action | `Modal.jsx` |
+| Toast notification for action feedback | `Toast.jsx` |
+| Pinned announcement at top of feed | `AnnouncementFeed.jsx` with `pinned` prop |
+| Read-only schedule list for participants and guests | `SchedulePanel.jsx` |
+
+---
+
+## 🚫 Hard Rules — Never Do These
+
+1. **No other fonts** — R&C variants for headings (h1/h2/h3), Phantom Sans for everything else. Nothing else, ever.
+2. **No other icon sets** — @hackclub/icons only.
+3. **No other component libraries** — Hack Club Theme / CSS only.
+4. **No TypeScript** — all files are `.js` / `.jsx`. Never create `.ts` or `.tsx` files.
+5. **No `null` or `undefined` rendered to DOM** — always provide a graceful fallback UI.
+6. **No inline styles for colors** — use Tailwind classes or CSS custom properties only.
+7. **No white/light backgrounds** — the portal is dark-navy only. `--color-light` is never used as a panel or page background.
+8. **No distortion of Hack Club logos** — use them as-is from the CDN URLs above.
+9. **No organizer/admin UI visible to participants or guests** — gate all elevated controls with a role check.
+10. **No `console.log` left in production code** — use `{/* TODO: */}` comments for debug markers.
+11. **No `'use client'` on layout shells or display-only components** — defer to server rendering unless interactivity is genuinely required.
+
+---
+
+## ✅ Copilot Collaboration Checklist
+
+Before submitting any code suggestion, verify:
+
+- [ ] File extension is `.js` or `.jsx` — no TypeScript introduced
+- [ ] Colors used are from the defined palette only
+- [ ] Heading font is R&C; body font is Phantom Sans — no other fonts used or imported
+- [ ] Icons are from @hackclub/icons only
+- [ ] Null / empty states have proper fallback UI
+- [ ] Organizer and admin controls are hidden from participants and guests
+- [ ] No `'use client'` added to layout shells or non-interactive components
+- [ ] Tailwind classes follow mobile-first responsive pattern
+- [ ] Destructive actions are guarded by a `Modal` confirmation
+- [ ] Status fields use a `Badge` component — not raw strings
+- [ ] Hack Club logo links to `https://hackclub.com`
+- [ ] No inline color styles — Tailwind classes or CSS custom properties only
+
+---
+
+## 🔗 Key Reference Links
+
+| Resource | URL |
+|---|---|
+| Hack Club Brand Guide | https://hackclub.com/brand |
+| Hack Club Icons | https://icons.hackclub.com |
+| Hack Club Theme | https://theme.hackclub.com |
+| Hack Club CSS (GitHub) | https://github.com/hackclub/css |
+| Blueprint reference site | https://blueprint.hackclub.com/guilds |
+| Hack Club Assets CDN | https://assets.hackclub.com |
+| Phantom Sans (Regular) | https://assets.hackclub.com/fonts/Phantom_Sans_0.7/Regular.woff2 |
+| HC Flag Logo (SVG) | https://assets.hackclub.com/flag-orpheus-top.svg |
+| R&C Font (free/demo) | https://www.dafont.com/r-c.font |
+| R&C Commercial License | https://www.myfonts.com/fonts/jbfoundry/r-c/ |
+
+---
+
+*Last updated by: project lead — update this line when you modify this file.*
+*Agents: if you modify this file, preserve all sections and append a changelog entry at the bottom.*
+
+---
+
+## 📝 Changelog
+
+| Date | Author | Change |
+|---|---|---|
+| 2026-04-11 | Project lead | Initial AGENTS.md created for the hackathon portal |

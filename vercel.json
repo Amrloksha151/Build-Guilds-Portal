@@ -1,0 +1,19 @@
+{
+  "buildCommand": "cd client/build-guilds && npm install && npm run build",
+  "outputDirectory": "client/build-guilds/dist",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/server/api/index"
+    },
+    {
+      "source": "/((?!api).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "functions": {
+    "server/api/index.js": {
+      "maxDuration": 10
+    }
+  }
+}

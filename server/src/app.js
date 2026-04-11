@@ -22,7 +22,7 @@ const sessionStore = new SequelizeStore({
   expiration: parseSessionTtlMs(process.env.SESSION_TTL),
 });
 
-void sessionStore.sync();
+const sessionStoreReady = sessionStore.sync();
 
 export function createApp() {
   const app = express();
@@ -47,6 +47,17 @@ export function createApp() {
   app.use(globalRateLimit);
   app.use(express.json());
   app.use(cookieParser());
+
+  app.use(async (req, res, next) => {
+    try {
+      await sessionStoreReady;
+      return next();
+    } catch (error) {
+      error.statusCode = 503;
+      error.code = "SESSION_STORE_INIT_FAILED";
+      return next(error);
+    }
+  });
 
   app.use(
     session({
