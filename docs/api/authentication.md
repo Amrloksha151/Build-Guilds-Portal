@@ -198,3 +198,7 @@ curl -i -b cookies.txt -c cookies.txt \
   -d '{"username":"new_user","password":"strong_password"}' \
   http://localhost:3000/api/v1/auth/register
 ```
+
+## Related docs
+
+- [Announcements API](./announcements.md)
