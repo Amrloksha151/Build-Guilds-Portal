@@ -122,4 +122,38 @@ export async function logout() {
   return payload.data
 }
 
+export async function getAnnouncements() {
+  const payload = await request('/announcements', {
+    method: 'GET',
+    headers: {},
+  })
+
+  return payload.data
+}
+
+/**
+ * @param {{ content: string }} body
+ */
+export async function createAnnouncement(body) {
+  await issueCsrfToken()
+  const csrfToken = getCookieValue(csrfCookieName)
+
+  if (!csrfToken) {
+    const error = new Error('Missing CSRF token cookie')
+    error.statusCode = 403
+    error.code = 'CSRF_TOKEN_REQUIRED'
+    throw error
+  }
+
+  const payload = await request('/announcements/create', {
+    method: 'POST',
+    headers: {
+      [CSRF_HEADER_NAME]: csrfToken,
+    },
+    body: JSON.stringify(body),
+  })
+
+  return payload.data
+}
+
 export { API_BASE_URL }
