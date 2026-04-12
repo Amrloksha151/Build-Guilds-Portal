@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "db:migration:create": "dotenv -e .env -- sequelize-cli migration:generate",
+    "db:migration:create": "dotenv -e .env -- node scripts/generate-migration.mjs",
+    "db:migration:auto": "dotenv -e .env -- node scripts/generate-model-diff-migration.mjs",
     "db:migrate": "dotenv -e .env -- sequelize-cli db:migrate",
     "db:migrate:undo": "dotenv -e .env -- sequelize-cli db:migrate:undo",
     "db:migrate:undo:all": "dotenv -e .env -- sequelize-cli db:migrate:undo:all"
