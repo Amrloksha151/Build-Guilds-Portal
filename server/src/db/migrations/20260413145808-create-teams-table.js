@@ -10,8 +10,13 @@ const migration = {
     },
     "name": {
       type: Sequelize.STRING(255),
-      allowNull: true,
+      allowNull: false,
       unique: true,
+    },
+    "score": {
+      type: Sequelize.BIGINT,
+      allowNull: false,
+      defaultValue: 0,
     }
   });
     await queryInterface.addColumn("users", "TeamId", {

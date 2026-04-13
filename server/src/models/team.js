@@ -8,11 +8,17 @@ const Team = sequelize.define(
         id: {
             type: DataTypes.UUID,
             defaultValue: DataTypes.UUIDV4,
-            primaryKey: true,
+            primaryKey: true
         },
         name: {
             type: DataTypes.STRING,
-            unique: true
+            unique: true,
+            allowNull: false
+        },
+        score: {
+            type: DataTypes.BIGINT,
+            allowNull: false,
+            defaultValue: 0
         }
     },
     {
